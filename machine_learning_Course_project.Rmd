@@ -1,0 +1,137 @@
+---
+title: "Machine Learning Project"
+author: "Charles L."
+date: "August 16, 2015"
+output: html_document
+---
+  
+##Background  
+
+It is now possible to collect large amounts of data about human activity. Most of this has been in the form of quantitative exercise data. This project is based on qualitative data regarding one particular activity, lifting a dumbbell. Accelerators were placed on the belt, forearm, arm and dumbbell of 6 subjects. They then performed activities in the correct manner and 4 incorrect manners. The data was recorded for each. The goal of this project is to develop a model to predict the quality of the exercise as classified by A,B,C,D,E. "A"" being the correct manner. Cf. http://groupware.les.inf.puc-rio.br/har  
+  
+##Executive Summary   
+Two models are developed. one is a decision tree, the other is a random forest. They are each subjected to cross validation. The random forest model is found to be far superior as judged by accuracy and out of sample error. It is this model that will be used for the submission section of this project.  
+  
+##Project
+
+**Download and read data, load libraries**  
+```{r, echo=TRUE}
+#download raw data
+# train_url <-'https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv'
+# test_url <-'https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv'
+# download.file(train_url,destfile = "./training_data")
+# download.file(test_url ,destfile = "./testing_data")
+training <- read.table("./training_data",header = TRUE, sep = ",")
+testing <- read.table("./testing_data",header = TRUE, sep = ",")
+## load needed libraries:
+suppressWarnings(suppressPackageStartupMessages(library(caret))) 
+suppressWarnings(suppressPackageStartupMessages(library(rpart)))
+suppressWarnings(suppressPackageStartupMessages(library(RColorBrewer)))
+suppressWarnings(suppressPackageStartupMessages(library(rattle)))
+suppressWarnings(suppressPackageStartupMessages(library(rpart.plot)))
+suppressWarnings(suppressPackageStartupMessages(library(randomForest)))
+```  
+**Exploratory Data Analysis**  
+Two data sets are downloaded `training` and `testing`. The second will not be used in this part of the project but only in the submission phase. The data is explored with `str()`, `summary()`, and `dim()`. The dimensions are shown.  
+```{r}
+dim(training)
+```  
+The `str()` and `summary()` functions reveal that a large percentage of the entries are `NA`(>20%). In addition the first several columns (7) contain things like names of subjects, time stamp etc. The last column contains the dependent variable "classe". The results of these two functions are not shown in the interest of space.  
+**Data Processing**  
+First, the NA's will be removed  
+```{r}
+training<-training[,colSums(is.na(training)) == 0]
+testing <-testing[,colSums(is.na(testing)) == 0]
+```  
+Second, those numeric values close to zero variance are removed as they do not contribute to discrimination between the outcomes  
+```{r}
+training<- training[ ,-nearZeroVar(training)]
+testing <- testing[ ,-nearZeroVar(testing)]   
+```  
+Finally, the first seven columns are removed as described above  
+```{r}
+training <- training[ ,-(1:7)]
+tesing <- testing[ ,-(1:7)]
+```  
+The final dimensions are as follows. There are 51 independent and 1 dependent variables.  
+
+```{r}
+dim(training)
+```  
+**Partitioning**  
+The training set is divided in to a set for training and a set for cross validation on a 75/25 basis. These will be used for model raining and validation.  
+```{r}
+set.seed(666)
+trainIndex <- createDataPartition(y=training$classe, p=0.75)[[1]]
+train1 <- training[trainIndex,]
+train_valid <- training[-trainIndex,]
+```  
+  
+##MODELS  
+  
+#Classification Tree Model  
+The first model is a classification Tree which follows with the statistics.  
+```{r}
+fitTree <- train(classe ~.,data = train1, method = "rpart")
+fitTree$finalModel
+prp(fitTree$finalModel)
+fancyRpartPlot(fitTree$finalModel, main = "classification Tree")
+```  
+**Statistics**(the model `fitTree` is validated with the set `train_valid)
+```{r}
+predictions <-predict(fitTree, newdata = train_valid[ ,-52])
+confusionMatrix(predictions, train_valid$classe) 
+```  
+**Evaluation**  
+This model does not use much computer resources (31 sec to train), but does not perform well. It has an accuracy of only **48%**. Using the formula $1-accuaracy$, the out of sample error rate is **52%. The classification tree has therefore minimal use.  
+  
+#Random Forest Model  
+The second model is a Random Forest.  The model and statistics follow,  
+```{r]}
+forestModel <- train(classe ~.,data=train1, method = "rf")
+forestModel$finalModel
+```  
+**Statistics**  
+```{r}
+predictionsRf <- predict(forestModel, newdata = train_valid[ ,-52])
+confusionMatrix(predictionsRf, train_valid$classe)
+```  
+**Evaluation**  
+This model is much more demanding on computer resources than the previous one (1hr 32 min. to train). It is, however, much more accurate with an accuracy of **99.55%**. Using the same formula $1-accuracy$, this gives us an out of sample error rate of **0.45%**.  
+  
+##Conclusion  
+  
+The random forest model will be used for the submission section of the report. There is often a trade off between memory and speed. These two models clearly demonstrate this.  
+  
+##Appendix  
+  
+**Submission**
+The following code will be used in the submission section of the project.  
+
+```{r}
+predictSubm <- predict(forestModel, newdata = testing)
+answer <- as.character(predictSubm)
+answer
+```  
+```
+```{r, results = "asis"}
+
+pml_write_files = function(x){
+        n = length(x)
+        for(i in 1:n){
+                filename = paste0("problem_id_",i,".txt")
+                write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+        }
+}
+
+pml_write_files(answer)
+```
+
+
+
+
+
+
+
+
+
